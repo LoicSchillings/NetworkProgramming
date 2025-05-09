@@ -62,7 +62,7 @@ sequenceDiagram
 
     Note over Client,CarGuessService: CarGuess-protocol
     Client->>CarGuessService: Loic>CarGuess?>Loic>"Merk & Model">
-    CarGuessService-->>Client: Loic>CarGuess!>Loic>Correct! +1 muntje>
+    CarGuessService-->>Client: Loic>CarGuess!>Loic>Correct! + X punten>
 
     Note over Client,CarShopService: CarShop-protocol
     Client->>CarShopService: Loic>CarShop?>Loic>
@@ -83,7 +83,7 @@ sequenceDiagram
 ./carshop_service
 
 # CarGuess client starten (C++)
-./client //Komt nog GUI voor
+./client
 ```
 
 ## Auteurs
