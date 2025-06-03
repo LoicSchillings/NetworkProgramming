@@ -28,11 +28,29 @@ std::vector<Car> cars = {
     {"Toyota", "Hilux", {"Japans", "Betrouwbaar", "Groot", "Veel verkocht", "Pick-up"}, 20},
     {"Lamborghini", "Aventador", {"V12 motor", "Luxe", "Snelle acceleratie", "Opvallend design", "Dure supercar"}, 90},
     {"Volkswagen", "Golf", {"Duits", "Compact", "Populair", "Verschillende varianten, GTi, R, GTD, ...", "Veelzijdig"}, 40},
-    {"Tesla", "Model S", {"Elektrisch", "Autopilot", "Amerikaans", "Luxe sedan", "Innovatief"}, 70}
+    {"Tesla", "Cybertruck", {"Elektrisch", "Onverwoestbaar", "Amerikaans", "Pick-up", "Innovatief"}, 70}
 };
 
 std::unordered_map<std::string, int> player_points;
 std::unordered_map<std::string, GameState> game_states;
+
+std::string trim(const std::string& str) {
+    const std::string whitespace = " \t\n\r";
+    size_t start = str.find_first_not_of(whitespace);
+    if (start == std::string::npos) return ""; // only whitespace
+    size_t end = str.find_last_not_of(whitespace);
+    return str.substr(start, end - start + 1);
+}
+
+std::string to_lower(const std::string& str) {
+    std::string lowered = str;
+    std::transform(lowered.begin(), lowered.end(), lowered.begin(), ::tolower);
+    return lowered;
+}
+
+std::string normalize(const std::string& str) {
+    return to_lower(trim(str));
+}
 
 Car get_random_car() {
     static std::mt19937 rng(static_cast<unsigned>(time(nullptr)));
@@ -40,17 +58,17 @@ Car get_random_car() {
     return cars[dist(rng)];
 }
 
-std::pair<std::string, std::string> parse_message(const std::string& msg) {
-    // Format: Loic>CarGuess?>Naam>Gok>
-    size_t start = msg.find("?>") + 2;
-    size_t mid = msg.find(">", start);
-    std::string name = msg.substr(start, mid - start);
+std::pair<std::string, std::string> parse_message(const std::string& message) {
+    size_t naam_start = message.find("?>");
+    if (naam_start == std::string::npos) return {"", ""};
+    size_t naam_end = message.find(">", naam_start + 2);
+    std::string naam = message.substr(naam_start + 2, naam_end - (naam_start + 2));
 
-    size_t guess_start = mid + 1;
-    size_t guess_end = msg.find(">", guess_start);
-    std::string guess = msg.substr(guess_start, guess_end - guess_start);
+    size_t gok_start = naam_end + 1;
+    size_t gok_end = message.find(">", gok_start);
+    std::string gok = message.substr(gok_start, gok_end - gok_start);
 
-    return {name, guess};
+    return {naam, gok};
 }
 
 int main() {
@@ -67,20 +85,17 @@ int main() {
     std::string topic = "Loic>CarGuess?>";
     sub_socket.setsockopt(ZMQ_SUBSCRIBE, topic.c_str(), topic.size());
     std::cout << "[CGService] Subscribed op topic: '" << topic << "'" << std::endl;
-    std::cout << "Debug 1\n";
 
     while (true) {
         zmq::message_t msg;
-        std::cout << "Debug 2\n";
         sub_socket.recv(msg, zmq::recv_flags::none);
-        std::cout << "Debug 3\n";
         std::string received_msg(static_cast<char*>(msg.data()), msg.size());
         std::cout << "[CGService] Ontvangen bericht: '" << received_msg << "'" << std::endl;
 
         auto [name, guess] = parse_message(received_msg);
         GameState& state = game_states[name];
 
-        if (!state.in_progress || state.hint_index >= state.current_car.hints.size()) {
+        if (!state.in_progress) {
             state = GameState();
             state.current_car = get_random_car();
             state.in_progress = true;
@@ -92,7 +107,11 @@ int main() {
         if (guess != "skip") {
             state.guesses_used++;
             std::string correct = state.current_car.brand + " " + state.current_car.model;
-            if (guess == correct) {
+            
+            std::cout << "[DEBUG] Guess (raw): '" << guess << "', Correct (raw): '" << correct << "'\n";
+            std::cout << "[DEBUG] Guess (normalized): '" << normalize(guess) << "', Correct (normalized): '" << normalize(correct) << "'\n";
+            
+            if (normalize(guess) == normalize(correct)) {
                 int points_awarded = state.current_car.rarity_points - (state.guesses_used - 1) * 10;
                 if (points_awarded < 10) points_awarded = 10;
                 player_points[name] += points_awarded;
